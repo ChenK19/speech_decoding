@@ -72,7 +72,7 @@ def readbdfdata(filename, pathname):
         raw = mne.io.read_raw_edf(os.path.join(pathname[0],filename[0]))
     else:    ## Neuracle
         ## read data
-        raw = mne.io.read_raw_bdf(os.path.join(pathname[0],'data.bdf'), preload=False)
+        raw = mne.io.read_raw_bdf(os.path.join(pathname[0],'data.bdf'), preload=True)
         fs = raw.info['sfreq']
         ## read events
         try:
