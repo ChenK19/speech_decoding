@@ -110,4 +110,11 @@ def readbdfdata(filename, pathname):
             raw.set_annotations(evt_annotations)
         except FileNotFoundError:
             print('⚠️ 未找到事件文件 (evt.bdf)')
+    raw.set_channel_types({
+    'ECG': 'ecg',
+    'HEOR': 'eog',
+    'HEOL': 'eog',
+    'VEOU': 'eog',
+    'VEOL': 'eog'
+    })
     return raw
