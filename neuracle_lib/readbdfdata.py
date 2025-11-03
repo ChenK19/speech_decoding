@@ -54,41 +54,60 @@ def read_annotations_bdf(annotations):
 
 
 def readbdfdata(filename, pathname):
-    '''
+    """
     Parameters
     ----------
-
     filename: list of str
-
     pathname: list of str
 
     Return:
     ----------
-    raw, mne Raw object
+    raw, mne Raw object (with correct units in Volt)
+    """
+    import os
+    import mne
+    import numpy as np
 
-    '''
-    raw = []
-    if 'edf' in filename[0]:  ## DSI
-        raw = mne.io.read_raw_edf(os.path.join(pathname[0],filename[0]))
-    else:    ## Neuracle
-        ## read data
-        raw = mne.io.read_raw_bdf(os.path.join(pathname[0],'data.bdf'), preload=True)
+    if 'edf' in filename[0]:  # DSI
+        raw = mne.io.read_raw_edf(os.path.join(pathname[0], filename[0]), preload=True)
+    else:  # Neuracle
+        # ✅ 1. 正确加载数据，强制 preload=True
+        raw = mne.io.read_raw_bdf(os.path.join(pathname[0], 'data.bdf'), preload=True)
         fs = raw.info['sfreq']
-        ## read events
+
+        # ✅ 2. 检查是否未标定
+        data = raw.get_data()
+        std = np.std(data)
+        if std > 1e-3:  # 振幅太大说明未缩放
+            print("⚠️ 检测到未标定的Neuracle数据，执行缩放 (ADC→Volt)")
+            scale = 3.125e-8  # 0.03125 µV per bit
+            data = data * scale
+            info = raw.info.copy()
+            raw = mne.io.RawArray(data, info)
+        else:
+            print("✅ 已检测到正确单位 (Volt)")
+
+        # ✅ 3. 尝试加载事件
         try:
-            annotationData = mne.io.read_raw_bdf(os.path.join(pathname[0],'evt.bdf'))
+            annotationData = mne.io.read_raw_bdf(os.path.join(pathname[0], 'evt.bdf'), preload=True)
             try:
-                tal_data = annotationData._read_segment_file([],[],0,0,int(annotationData.n_times),None,None)
+                tal_data = annotationData._read_segment_file([], [], 0, 0, int(annotationData.n_times), None, None)
                 print('mne version <= 0.20')
-            except:
+            except Exception:
                 idx = np.empty(0, int)
-                tal_data = annotationData._read_segment_file(np.empty((0, annotationData.n_times)), idx, 0, 0, int(annotationData.n_times), np.ones((len(idx), 1)), None)
+                tal_data = annotationData._read_segment_file(
+                    np.empty((0, annotationData.n_times)),
+                    idx,
+                    0,
+                    0,
+                    int(annotationData.n_times),
+                    np.ones((len(idx), 1)),
+                    None
+                )
                 print('mne version > 0.20')
             onset, duration, description = read_annotations_bdf(tal_data[0])
-            evt_annotations = mne.Annotations(onset=onset, duration=duration,
-                                          description=description)
+            evt_annotations = mne.Annotations(onset=onset, duration=duration, description=description)
             raw.set_annotations(evt_annotations)
-        except:
-            print('not found any event')
+        except FileNotFoundError:
+            print('⚠️ 未找到事件文件 (evt.bdf)')
     return raw
-
